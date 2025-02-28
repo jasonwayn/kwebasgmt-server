@@ -17,7 +17,7 @@ console.log("🚀 서버 실행 준비 중...");
 const db = mysql.createConnection({
     host: "localhost",
     user: "root",
-    password: "kweb",  
+    password: "hjsoo2001!",  // 본인 MySQL 비밀번호 입력
     database: "myblog"
 });
 
@@ -338,6 +338,33 @@ app.post("/api/likes", (req, res) => {
     });
 });
 
+//알림
+app.get("/api/notifications/:user_id", (req, res) => {
+    const { user_id } = req.params;
+
+    const sql = "SELECT * FROM notifications WHERE user_id = ? AND is_read = FALSE ORDER BY created_at DESC";
+    db.query(sql, [user_id], (err, results) => {
+        if (err) {
+            console.error("❌ 알림 불러오기 실패:", err);
+            return res.status(500).json({ error: "알림 불러오기 실패" });
+        }
+        res.json(results);
+    });
+});
+
+// 알림 상태 업데이트 (읽음 처리)
+app.put("/api/notifications/:id", (req, res) => {
+    const { id } = req.params;  // 알림 ID
+
+    const updateNotification = "UPDATE notifications SET is_read = TRUE WHERE id = ?";
+    db.query(updateNotification, [id], (err, result) => {
+        if (err) {
+            console.error("❌ 알림 업데이트 실패:", err);
+            return res.status(500).json({ error: "알림 업데이트 실패" });
+        }
+        res.json({ message: "✅ 알림 읽음 처리 완료!" });
+    });
+});
 
 // ✅ 게시물의 좋아요 개수를 가져오는 API
 app.get("/api/likes/count/:post_id", (req, res) => {
@@ -390,240 +417,4 @@ app.get("/api/saved_posts/:user_id", (req, res) => {
         if (err) return res.status(500).json({ error: "저장된 게시물 불러오기 실패" });
         res.json(results);
     });
-});
-
-// 🔹 서로이웃 요청 보내기
-app.post("/api/friend_request", (req, res) => {
-    const { sender_id, receiver_id } = req.body;
-
-    if (!sender_id || !receiver_id) {
-        return res.status(400).json({ error: "필수 데이터가 누락되었습니다." });
-    }
-
-    // ✅ 먼저 `friend_requests`에 요청 저장
-    db.query("INSERT INTO friend_requests (sender_id, receiver_id) VALUES (?, ?)", 
-    [sender_id, receiver_id], (err, requestResult) => {
-        if (err) return res.status(500).json({ error: "서로이웃 요청 저장 실패" });
-
-        const request_id = requestResult.insertId; // 새 요청 ID 가져오기
-
-        // ✅ 요청 보낸 사용자 이름 가져오기
-        db.query("SELECT username FROM users WHERE id = ?", [sender_id], (err, result) => {
-            if (err || result.length === 0) {
-                return res.status(500).json({ error: "요청 보낸 사용자 정보 조회 실패" });
-            }
-
-            const sender_name = result[0].username;
-
-            // ✅ `notifications` 테이블에 알림 저장
-            db.query("INSERT INTO notifications (user_id, message, type, request_id, sender_id) VALUES (?, ?, ?, ?, ?)", 
-            [receiver_id, `${sender_name}님이 서로이웃 요청을 보냈습니다.`, "friend_request", request_id, sender_id], 
-            (err) => {
-                if (err) console.error("❌ 서로이웃 요청 알림 저장 실패:", err);
-            });
-
-            res.json({ message: "서로이웃 요청이 전송되었습니다." });
-        });
-    });
-});
-
-
-// 🔹 서로이웃 요청 수락
-app.put("/api/friend_request/accept", (req, res) => {
-    const { request_id } = req.body; 
-
-    if (!request_id) {
-        console.error("❌ 요청 ID 없음");
-        return res.status(400).json({ error: "필수 데이터가 누락되었습니다." });
-    }
-
-    console.log(`✅ 수락 요청 수신: request_id=${request_id}`);
-
-    // ✅ `friend_requests`에서 `sender_id`, `receiver_id` 가져오기
-    db.query("SELECT sender_id, receiver_id FROM friend_requests WHERE id = ?", 
-    [request_id], (err, results) => {
-        if (err) {
-            console.error("❌ 서로이웃 요청 조회 실패:", err);
-            return res.status(500).json({ error: "서로이웃 요청 조회 실패" });
-        }
-
-        if (results.length === 0) {
-            console.error("❌ 서로이웃 요청이 존재하지 않음!");
-            return res.status(404).json({ error: "서로이웃 요청이 존재하지 않습니다." });
-        }
-
-        const { sender_id, receiver_id } = results[0];
-        console.log(`🔹 서로이웃 요청 조회 완료: sender_id=${sender_id}, receiver_id=${receiver_id}`);
-
-        // ✅ 서로이웃 관계 추가 (friendships 테이블)
-        db.query("INSERT INTO friendships (user_id1, user_id2) VALUES (?, ?)", 
-        [sender_id, receiver_id], (err, result) => {
-            if (err) {
-                console.error("❌ 서로이웃 관계 추가 실패:", err);
-                return res.status(500).json({ error: "서로이웃 관계 추가 실패" });
-            }
-
-            console.log(`✅ 서로이웃 관계 추가 완료: ${sender_id} <-> ${receiver_id}`);
-
-            // ✅ 서로이웃 요청 삭제 (friend_requests 테이블)
-            db.query("DELETE FROM friend_requests WHERE id = ?", [request_id], (err, deleteResult) => {
-                if (err) {
-                    console.error("❌ 서로이웃 요청 삭제 실패:", err);
-                    return res.status(500).json({ error: "서로이웃 요청 삭제 실패" });
-                }
-
-                console.log(`✅ 서로이웃 요청 삭제 완료: request_id=${request_id}`);
-
-                // ✅ 서로이웃 승인 알림 추가 (notifications 테이블)
-                const message = "서로이웃 요청이 승인되었습니다!";
-                db.query("INSERT INTO notifications (user_id, message, type, sender_id) VALUES (?, ?, ?, ?)", 
-                [sender_id, message, "friend_accept", receiver_id], (err, notifResult) => {
-                    if (err) {
-                        console.error("❌ 서로이웃 승인 알림 저장 실패:", err);
-                    } else {
-                        console.log(`✅ 서로이웃 승인 알림 추가 완료: user_id=${sender_id}, sender_id=${receiver_id}`);
-                    }
-                    res.json({ message: "✅ 서로이웃 요청이 승인되었습니다." });
-                });
-            });
-        });
-    });
-});
-
-//요청 거절
-app.put("/api/friend_request/reject", (req, res) => {
-    const { request_id } = req.body;
-
-    if (!request_id) {
-        return res.status(400).json({ error: "필수 데이터가 누락되었습니다." });
-    }
-
-    db.query("DELETE FROM friend_requests WHERE id = ?", [request_id], (err) => {
-        if (err) return res.status(500).json({ error: "서로이웃 요청 거절 실패" });
-        res.json({ message: "서로이웃 요청이 거절되었습니다." });
-    });
-});
-
-// 🔹 서로이웃 상태 확인 API (디버깅용 로그 추가)
-app.get("/api/friendship/status/:user_id1/:user_id2", (req, res) => {
-    const { user_id1, user_id2 } = req.params;
-    console.log(`✅ 서로이웃 상태 확인 요청: user_id1=${user_id1}, user_id2=${user_id2}`);
-
-    db.query(
-        "SELECT * FROM friendships WHERE (user_id1 = ? AND user_id2 = ?) OR (user_id1 = ? AND user_id2 = ?)",
-        [user_id1, user_id2, user_id2, user_id1],
-        (err, results) => {
-            if (err) {
-                console.error("❌ 서로이웃 상태 확인 실패 (DB 오류):", err);
-                return res.status(500).json({ error: "서로이웃 상태 확인 실패 (DB 오류 발생)" });
-            }
-
-            if (results.length > 0) {
-                console.log(`✅ 서로이웃 관계 확인됨: ${user_id1} <-> ${user_id2}`);
-                return res.json({ isFriend: true });
-            }
-
-            console.log(`❌ 서로이웃 관계 없음: ${user_id1} <-> ${user_id2}, 서로이웃 요청 여부 확인 중...`);
-
-            // ✅ 서로이웃 요청 여부 확인 (friend_requests 테이블 조회)
-            db.query(
-                "SELECT id FROM friend_requests WHERE sender_id = ? AND receiver_id = ?",
-                [user_id1, user_id2],
-                (err, requestResults) => {
-                    if (err) {
-                        console.error("❌ 서로이웃 요청 확인 실패 (DB 오류):", err);
-                        return res.status(500).json({ error: "서로이웃 요청 확인 실패 (DB 오류 발생)" });
-                    }
-
-                    if (requestResults.length > 0) {
-                        console.log(`✅ 서로이웃 요청 존재: ${user_id1} -> ${user_id2}`);
-                        return res.json({ isFriend: false, requestSent: true, request_id: requestResults[0].id });
-                    }
-
-                    console.log(`❌ 서로이웃 요청도 없음: ${user_id1} <-> ${user_id2}`);
-                    return res.json({ isFriend: false, requestSent: false });
-                }
-            );
-        }
-    );
-});
-
-
-// 🔹 알림 불러오기 (서로이웃 요청의 sender_id 가져오기)
-app.get("/api/notifications/:user_id", (req, res) => {
-    const { user_id } = req.params;
-
-    const sql = `
-        SELECT n.*, 
-               u.username AS sender_name 
-        FROM notifications n
-        LEFT JOIN users u ON n.sender_id = u.id
-        WHERE n.user_id = ? AND n.is_read = FALSE 
-        ORDER BY n.created_at DESC;
-    `;
-
-    db.query(sql, [user_id], (err, results) => {
-        if (err) {
-            console.error("❌ 알림 불러오기 실패:", err);
-            return res.status(500).json({ error: "알림 불러오기 실패" });
-        }
-        res.json(results);
-    });
-});
-
-// 🔹 알림 읽음 처리
-app.put("/api/notifications/:id", (req, res) => {
-    const { id } = req.params;
-
-    db.query("UPDATE notifications SET is_read = TRUE WHERE id = ?", [id], (err, result) => {
-        if (err) {
-            console.error("❌ 알림 읽음 처리 실패:", err);
-            return res.status(500).json({ error: "알림 읽음 처리 실패" });
-        }
-        res.json({ message: "✅ 알림 읽음 처리 완료!", notificationId: id });
-    });
-});
-
-// 🔹 서로이웃 해제 API
-app.delete("/api/friendship/remove/:user1_id/:user2_id", (req, res) => {
-    const { user1_id, user2_id } = req.params;
-    console.log(`✅ 서로이웃 해제 요청: ${user1_id} <-> ${user2_id}`);
-
-    db.query(
-        "DELETE FROM friendships WHERE (user_id1 = ? AND user_id2 = ?) OR (user_id1 = ? AND user_id2 = ?)",
-        [user1_id, user2_id, user2_id, user1_id],
-        (err, result) => {
-            if (err) {
-                console.error("❌ 서로이웃 해제 실패:", err);
-                return res.status(500).json({ error: "서로이웃 해제 실패" });
-            }
-
-            if (result.affectedRows === 0) {
-                console.error("❌ 서로이웃 관계 없음:", user1_id, "<->", user2_id);
-                return res.status(404).json({ error: "서로이웃 관계가 존재하지 않습니다." });
-            }
-
-            console.log(`✅ 서로이웃 해제 완료: ${user1_id} <-> ${user2_id}`);
-
-            // ✅ 서로이웃 해제 알림 추가
-            const message = "서로이웃이 해제되었습니다.";
-            db.query(
-                "INSERT INTO notifications (user_id, message, type, sender_id) VALUES (?, ?, ?, ?)",
-                [user1_id, message, "friend_remove", user2_id],
-                (err) => {
-                    if (err) console.error("❌ 서로이웃 해제 알림 저장 실패:", err);
-                }
-            );
-
-            db.query(
-                "INSERT INTO notifications (user_id, message, type, sender_id) VALUES (?, ?, ?, ?)",
-                [user2_id, message, "friend_remove", user1_id],
-                (err) => {
-                    if (err) console.error("❌ 서로이웃 해제 알림 저장 실패:", err);
-                }
-            );
-
-            res.json({ message: "✅ 서로이웃이 해제되었습니다." });
-        }
-    );
 });
