@@ -1,3 +1,9 @@
+Github repository 
+-kwebasgmt-server (백엔드 server.js 등)
+-kwebasgmt (react 프론트엔드)
+
+
+
 1. 로컬 환경 구성
 이 프로젝트를 실행하기 위해 아래 환경이 필요합니다:
 
