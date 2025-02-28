@@ -48,4 +48,7 @@ my-blog 파일에서 npm start
 2. ID : test@email.com
    PW : test1234
 
+5.프로필편집
+프로필 편집의 경우 /profile/1 , /profile/2 등의 링크로 접속하여 가능. (로그인 된 본인의 프로필일 경우에만 프로필 편집 가능)
+
 - 
