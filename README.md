@@ -7,12 +7,14 @@
 
 2. 데이터베이스 세팅 방법
 - database.sql 파일에 존재하는 DB스키마를 이용하여 mysql에 세팅 가능
-- mysql -u root -p < database.sql
+- mysql -u root -p
+- password : kweb (제 케이스)
 
 3.테스트 계정 정보
 1. ID : shoot0428@naver.com
    PW : shoot0428
 
-2. ID : 
+2. ID : test@email.com
+   PW : test1234
 
 - 
